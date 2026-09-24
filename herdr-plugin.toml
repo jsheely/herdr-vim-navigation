@@ -1,0 +1,56 @@
+# herdr plugin: Vim Navigation
+#
+# Seamless Ctrl+h/j/k/l navigation across Herdr panes and Vim/Neovim splits,
+# the herdr port of vim-tmux-navigator. Each action checks what is running in
+# the focused pane: if it is Vim/Neovim the key is forwarded into it (Vim moves
+# between its splits and hands back to Herdr at an edge, see editor/); anything
+# else moves Herdr's pane focus directly.
+#
+# Install:   herdr plugin install jsheely/herdr-vim-navigation
+# Local dev: herdr plugin link /path/to/herdr-vim-navigation
+# Logs:      herdr plugin log list --plugin jsheely.vim-navigation
+# Config:    herdr plugin config-dir jsheely.vim-navigation   (config.toml)
+
+id = "jsheely.vim-navigation"
+name = "Vim Navigation"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Seamless Ctrl+h/j/k/l navigation across Herdr panes and Vim/Neovim splits on Linux, macOS, and Windows."
+platforms = ["linux", "macos", "windows"]
+
+# Compiled at install time with the plugin root as cwd. Zero external Go deps,
+# so this works offline.
+[[build]]
+command = ["go", "build", "-trimpath", "-ldflags", "-s -w", "-o", "bin/herdr-vim-navigation", "."]
+platforms = ["linux", "macos"]
+
+[[build]]
+command = ["go", "build", "-trimpath", "-ldflags", "-s -w", "-o", "bin/herdr-vim-navigation.exe", "."]
+platforms = ["windows"]
+
+# One action per direction. Bind each to a direct Ctrl chord in your Herdr
+# config (see README.md).
+
+[[actions]]
+id = "left"
+title = "Navigate left (Vim/Herdr)"
+contexts = ["global", "workspace", "tab", "pane"]
+command = ["./bin/herdr-vim-navigation", "left"]
+
+[[actions]]
+id = "down"
+title = "Navigate down (Vim/Herdr)"
+contexts = ["global", "workspace", "tab", "pane"]
+command = ["./bin/herdr-vim-navigation", "down"]
+
+[[actions]]
+id = "up"
+title = "Navigate up (Vim/Herdr)"
+contexts = ["global", "workspace", "tab", "pane"]
+command = ["./bin/herdr-vim-navigation", "up"]
+
+[[actions]]
+id = "right"
+title = "Navigate right (Vim/Herdr)"
+contexts = ["global", "workspace", "tab", "pane"]
+command = ["./bin/herdr-vim-navigation", "right"]
