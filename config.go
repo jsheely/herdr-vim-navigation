@@ -26,6 +26,9 @@ type Config struct {
 	// Keys forwarded into Vim for left, down, up, right. Must match the keys
 	// the editor side maps.
 	Keys [4]string
+	// Directions whose key goes into the pane when Herdr has no pane that
+	// way, so shell bindings like Ctrl+L (clear) still work at an edge.
+	ForwardAtEdge []Direction
 	// Log every decision to the plugin log.
 	Debug bool
 }
@@ -47,14 +50,22 @@ passthrough = []
 # the keys your editor maps (editor/nvim.lua and editor/vim.vim map Ctrl+hjkl).
 keys = ["ctrl+h", "ctrl+j", "ctrl+k", "ctrl+l"]
 
+# When there is no Herdr pane in a direction, send that direction's key into
+# the pane instead, so a shell keeps Ctrl+L (clear screen), Ctrl+K (kill line)
+# and Ctrl+H (backspace) at the edges and in a lone pane. "down" is left out
+# because Ctrl+J is Enter in bash and zsh: pressing it once too often would run
+# the command line. Use [] to always just move focus.
+forward_at_edge = ["left", "up", "right"]
+
 # Log every navigation decision to ` + "`herdr plugin log list`" + `.
 debug = false
 `
 
 func defaultConfig() Config {
 	return Config{
-		VimPattern: regexp.MustCompile(defaultVimPattern),
-		Keys:       [4]string{"ctrl+h", "ctrl+j", "ctrl+k", "ctrl+l"},
+		VimPattern:    regexp.MustCompile(defaultVimPattern),
+		Keys:          [4]string{"ctrl+h", "ctrl+j", "ctrl+k", "ctrl+l"},
+		ForwardAtEdge: []Direction{"left", "up", "right"},
 	}
 }
 
@@ -124,6 +135,17 @@ func parseConfig(src string) (Config, error) {
 				}
 			}
 		}
+	}
+	if v, ok := values["forward_at_edge"].([]string); ok {
+		dirs := []Direction{}
+		for _, s := range v {
+			if d, ok := parseDirection(strings.ToLower(strings.TrimSpace(s))); ok {
+				dirs = append(dirs, d)
+			} else {
+				problems = append(problems, fmt.Sprintf("forward_at_edge: unknown direction %q (want left, down, up, right)", s))
+			}
+		}
+		cfg.ForwardAtEdge = dirs
 	}
 	if v, ok := values["debug"].(bool); ok {
 		cfg.Debug = v

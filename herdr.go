@@ -17,9 +17,21 @@ import (
 // interface so tests can record calls without a running server.
 type Herdr interface {
 	ProcessInfo(paneID string) (ProcessInfo, error)
-	FocusDirection(dir Direction, paneID string) error
+	FocusDirection(dir Direction, paneID string) (FocusResult, error)
 	SendKeys(paneID string, keys ...string) error
 }
+
+// FocusResult is the part of pane.focus_direction's result the navigator
+// uses. Herdr versions that predate these fields decode to the zero value,
+// which reads as "focus moved".
+type FocusResult struct {
+	// "no_neighbor" when there is no pane in that direction.
+	Reason string `json:"reason"`
+	// The pane focus was moving from.
+	SourcePaneID string `json:"source_pane_id"`
+}
+
+const reasonNoNeighbor = "no_neighbor"
 
 // ProcessInfo mirrors the result of pane.process_info.
 type ProcessInfo struct {
@@ -62,7 +74,7 @@ func (c *client) ProcessInfo(paneID string) (ProcessInfo, error) {
 	return res.ProcessInfo, err
 }
 
-func (c *client) FocusDirection(dir Direction, paneID string) error {
+func (c *client) FocusDirection(dir Direction, paneID string) (FocusResult, error) {
 	params := map[string]any{"direction": string(dir)}
 	args := []string{"pane", "focus", "--direction", string(dir)}
 	if paneID != "" {
@@ -71,7 +83,11 @@ func (c *client) FocusDirection(dir Direction, paneID string) error {
 	} else {
 		args = append(args, "--current")
 	}
-	return c.call("pane.focus_direction", params, args, nil)
+	var res struct {
+		Focus FocusResult `json:"focus"`
+	}
+	err := c.call("pane.focus_direction", params, args, &res)
+	return res.Focus, err
 }
 
 func (c *client) SendKeys(paneID string, keys ...string) error {

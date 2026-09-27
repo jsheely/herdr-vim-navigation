@@ -44,7 +44,8 @@ func TestDefaultConfigFileRoundTrips(t *testing.T) {
 	}
 	def := defaultConfig()
 	if cfg.VimPattern.String() != def.VimPattern.String() || cfg.Keys != def.Keys ||
-		cfg.Debug != def.Debug || len(cfg.Passthrough) != 0 {
+		cfg.Debug != def.Debug || len(cfg.Passthrough) != 0 ||
+		!reflect.DeepEqual(cfg.ForwardAtEdge, def.ForwardAtEdge) {
 		t.Fatalf("default file parsed to %+v, want %+v", cfg, def)
 	}
 }
@@ -53,10 +54,14 @@ func TestParseConfig(t *testing.T) {
 	cfg, err := parseConfig(`
 passthrough = ["LazyGit.exe", "k9s", ""]
 keys = ["alt+h", "alt+j", "alt+k", "alt+l"]
+forward_at_edge = ["Right", "down"]
 debug = true
 `)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if want := []Direction{"right", "down"}; !reflect.DeepEqual(cfg.ForwardAtEdge, want) {
+		t.Errorf("forward_at_edge = %q, want %q", cfg.ForwardAtEdge, want)
 	}
 	if want := []string{"lazygit", "k9s"}; !reflect.DeepEqual(cfg.Passthrough, want) {
 		t.Errorf("passthrough = %q, want %q", cfg.Passthrough, want)
@@ -72,15 +77,19 @@ func TestParseConfigKeepsGoodValues(t *testing.T) {
 vim_pattern = "("
 keys = ["ctrl+h"]
 passthrough = ["lazygit"]
+forward_at_edge = ["right", "sideways"]
 `)
-	if err == nil || !strings.Contains(err.Error(), "vim_pattern") || !strings.Contains(err.Error(), "keys") {
-		t.Fatalf("expected vim_pattern and keys errors, got %v", err)
+	for _, key := range []string{"vim_pattern", "keys", "sideways"} {
+		if err == nil || !strings.Contains(err.Error(), key) {
+			t.Fatalf("expected a %s error, got %v", key, err)
+		}
 	}
 	if cfg.VimPattern.String() != defaultVimPattern || cfg.Keys != defaultConfig().Keys {
 		t.Errorf("bad values should fall back to defaults: %+v", cfg)
 	}
-	if !reflect.DeepEqual(cfg.Passthrough, []string{"lazygit"}) {
-		t.Errorf("good values should still apply: %q", cfg.Passthrough)
+	if !reflect.DeepEqual(cfg.Passthrough, []string{"lazygit"}) ||
+		!reflect.DeepEqual(cfg.ForwardAtEdge, []Direction{"right"}) {
+		t.Errorf("good values should still apply: %q %q", cfg.Passthrough, cfg.ForwardAtEdge)
 	}
 }
 

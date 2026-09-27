@@ -31,6 +31,17 @@ func (c Config) key(dir Direction) string {
 	return ""
 }
 
+// forwardsAtEdge reports whether dir's key goes into the pane when Herdr has
+// no pane in that direction.
+func (c Config) forwardsAtEdge(dir Direction) bool {
+	for _, d := range c.ForwardAtEdge {
+		if d == dir {
+			return true
+		}
+	}
+	return false
+}
+
 // platformNames is swapped out by tests so they never inspect real processes.
 var platformNames = platformProcessNames
 
@@ -40,7 +51,7 @@ func navigate(cfg Config, h Herdr, dir Direction, paneID string) error {
 	if paneID == "" {
 		// No pane in the invocation context: let Herdr use its focused pane.
 		debugf("%s: no target pane; moving focus", dir)
-		return h.FocusDirection(dir, "")
+		return moveFocus(cfg, h, dir, "")
 	}
 	names, err := paneProcessNames(h, paneID)
 	if err != nil {
@@ -52,7 +63,28 @@ func navigate(cfg Config, h Herdr, dir Direction, paneID string) error {
 		return h.SendKeys(paneID, cfg.key(dir))
 	}
 	debugf("%s: %s is running %v; moving focus", dir, paneID, names)
-	return h.FocusDirection(dir, paneID)
+	return moveFocus(cfg, h, dir, paneID)
+}
+
+// moveFocus moves Herdr's focus. If there is no pane in that direction and
+// dir is listed in forward_at_edge, the key goes to the pane instead, so a
+// lone shell still gets Ctrl+L (clear screen). Asking Herdr to move and
+// reading its answer keeps the common case to one request, and there is no
+// window where the layout can change between checking and moving.
+func moveFocus(cfg Config, h Herdr, dir Direction, paneID string) error {
+	res, err := h.FocusDirection(dir, paneID)
+	if err != nil || res.Reason != reasonNoNeighbor || !cfg.forwardsAtEdge(dir) {
+		return err
+	}
+	pane := res.SourcePaneID
+	if pane == "" {
+		pane = paneID
+	}
+	if pane == "" {
+		return nil
+	}
+	debugf("%s: no pane that way; sending %s to %s", dir, cfg.key(dir), pane)
+	return h.SendKeys(pane, cfg.key(dir))
 }
 
 // paneProcessNames lists the programs that may be in control of the pane:

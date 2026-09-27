@@ -12,6 +12,7 @@ import (
 type fakeHerdr struct {
 	procs   []string // foreground process names reported by process_info
 	infoErr error
+	edge    bool // FocusDirection reports no pane in that direction
 	calls   []string
 }
 
@@ -32,9 +33,16 @@ func (f *fakeHerdr) ProcessInfo(paneID string) (ProcessInfo, error) {
 	return info, nil
 }
 
-func (f *fakeHerdr) FocusDirection(dir Direction, paneID string) error {
+func (f *fakeHerdr) FocusDirection(dir Direction, paneID string) (FocusResult, error) {
 	f.calls = append(f.calls, strings.TrimSpace("focus "+string(dir)+" "+paneID))
-	return nil
+	if !f.edge {
+		return FocusResult{}, nil
+	}
+	src := paneID
+	if src == "" {
+		src = "w1:p7" // Herdr's focused pane
+	}
+	return FocusResult{Reason: reasonNoNeighbor, SourcePaneID: src}, nil
 }
 
 func (f *fakeHerdr) SendKeys(paneID string, keys ...string) error {
@@ -62,6 +70,8 @@ func TestNavigate(t *testing.T) {
 	passthrough.Passthrough = []string{"lazygit"}
 	custom := defaultConfig()
 	custom.Keys = [4]string{"alt+h", "alt+j", "alt+k", "alt+l"}
+	noEdge := defaultConfig()
+	noEdge.ForwardAtEdge = nil
 
 	cases := []struct {
 		name     string
@@ -69,6 +79,7 @@ func TestNavigate(t *testing.T) {
 		procs    []string
 		platform []string
 		infoErr  error
+		edge     bool
 		dir      Direction
 		pane     string
 		want     string
@@ -81,6 +92,11 @@ func TestNavigate(t *testing.T) {
 		{name: "custom keys", cfg: custom, procs: []string{"nvim"}, dir: "down", pane: "w1:p1", want: "send-keys w1:p1 alt+j"},
 		{name: "no pane uses focused pane", procs: []string{"nvim"}, dir: "right", pane: "", want: "focus right"},
 		{name: "process info error moves focus", infoErr: errors.New("boom"), dir: "left", pane: "w1:p1", want: "focus left w1:p1"},
+		{name: "shell at edge gets key", procs: []string{"zsh"}, edge: true, dir: "right", pane: "w1:p1", want: "send-keys w1:p1 ctrl+l"},
+		{name: "down at edge only moves focus", procs: []string{"zsh"}, edge: true, dir: "down", pane: "w1:p1", want: "focus down w1:p1"},
+		{name: "edge forwarding off", cfg: noEdge, procs: []string{"zsh"}, edge: true, dir: "right", pane: "w1:p1", want: "focus right w1:p1"},
+		{name: "custom keys at edge", cfg: custom, procs: []string{"zsh"}, edge: true, dir: "left", pane: "w1:p1", want: "send-keys w1:p1 alt+h"},
+		{name: "no pane at edge uses source pane", edge: true, dir: "up", pane: "", want: "send-keys w1:p7 ctrl+k"},
 		{
 			// Windows: Herdr reports only the shell; Vim is found beside it.
 			name: "windows console process forwards", procs: []string{"pwsh.exe"},
@@ -100,7 +116,7 @@ func TestNavigate(t *testing.T) {
 			if cfg.VimPattern == nil {
 				cfg = defaultConfig()
 			}
-			f := &fakeHerdr{procs: tc.procs, infoErr: tc.infoErr}
+			f := &fakeHerdr{procs: tc.procs, infoErr: tc.infoErr, edge: tc.edge}
 			if err := navigate(cfg, f, tc.dir, tc.pane); err != nil {
 				t.Fatal(err)
 			}

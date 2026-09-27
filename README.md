@@ -18,7 +18,8 @@ There are two cooperating sides, as in `vim-tmux-navigator`:
 - **Herdr side** (the Go binary): a Herdr keybind runs a plugin action on each
   press. The action checks what is running in the focused pane. If it's
   Vim/Neovim, it forwards the key into the pane; otherwise it moves Herdr's
-  pane focus.
+  pane focus. If there is no pane in that direction, the key goes into the
+  pane instead, so `Ctrl+L` still clears a shell (see `forward_at_edge`).
 - **Editor side** (`editor/nvim.lua`, `editor/vim.vim`): maps the same keys to
   `wincmd h/j/k/l`. If the window didn't change (Vim is at an edge), it runs
   `herdr pane focus --direction …` to cross into the neighbouring Herdr pane.
@@ -167,6 +168,10 @@ passthrough = []
 # Keys forwarded into Vim, in left, down, up, right order.
 keys = ["ctrl+h", "ctrl+j", "ctrl+k", "ctrl+l"]
 
+# When there is no Herdr pane in a direction, send that direction's key into
+# the pane instead. "down" is left out because Ctrl+J is Enter in bash/zsh.
+forward_at_edge = ["left", "up", "right"]
+
 # Log every navigation decision to `herdr plugin log list`.
 debug = false
 ```
@@ -203,11 +208,16 @@ herdr plugin log list --plugin jsheely.vim-navigation
   every non-Vim pane just moves Herdr focus. To let one of these handle the
   chord itself, add it to `passthrough`. Unlike Vim, these apps can't hand
   focus back at an edge, so use `prefix+h/j/k/l` to leave the pane.
-- **`Ctrl+l` / `Ctrl+k` in shells.** Binding these globally shadows
+- **`Ctrl+l` / `Ctrl+k` in shells.** Binding these globally would shadow
   readline's clear-screen and kill-line (and PSReadLine's `Ctrl+L` clear on
-  Windows) in non-Vim panes. vim-tmux-navigator has the same tradeoff. If you
-  want them back, bind clear to something like `prefix+l`, or use
-  `alt+h/j/k/l` for navigation.
+  Windows). With `forward_at_edge`, a key with nowhere to go reaches the shell
+  instead: in a lone pane `Ctrl+L` always clears, and in a split it clears
+  from the rightmost pane. Herdr's reply to the focus request says whether
+  focus moved, so this adds no request when focus does move. With a pane to
+  the right, `Ctrl+L` still moves focus, so bind clear to something like
+  `prefix+l` if you want it everywhere, or use `alt+h/j/k/l` for navigation.
+  `Ctrl+J` is not forwarded by default: in bash and zsh it is Enter, so one
+  press too many would run the command line.
 - **`Ctrl+h` vs Backspace.** Herdr delivers `ctrl+h` as a distinct key. This
   was verified on Windows ConPTY with Neovim 0.12, where `<C-h>` and `<BS>`
   arrive separately. Older Vims outside the kitty keyboard protocol may still

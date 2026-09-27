@@ -35,11 +35,20 @@ func fakeCLI(args []string) {
 	case strings.Contains(joined, "w1:missing"):
 		fmt.Fprintln(os.Stderr, `{"id":"cli:pane:focus","error":{"code":"pane_not_found","message":"pane not found"}}`)
 		os.Exit(1)
+	case strings.HasPrefix(joined, "pane focus --direction right"):
+		// The fake layout has nothing to the right.
+		fmt.Println(noNeighborResult)
 	default:
 		fmt.Println(`{"id":"cli","result":{"type":"ok"}}`)
 	}
 	os.Exit(0)
 }
+
+// noNeighborResult is pane.focus_direction's reply at an edge, as captured
+// from Herdr 0.9.1 (layout trimmed).
+const noNeighborResult = `{"id":"cli:pane:focus","result":{"focus":{"changed":false,"focused_pane_id":"w1:p1",` +
+	`"layout":{"panes":[],"splits":[],"zoomed":false},"reason":"no_neighbor","source_pane_id":"w1:p1"},` +
+	`"type":"pane_focus_direction"}}`
 
 // fakeCLIClient returns a client whose socket is unavailable, so every call
 // goes through the fake CLI, plus a func returning the logged commands.
@@ -70,26 +79,31 @@ func TestCLIFallback(t *testing.T) {
 	if info.ShellPID != 7 || len(info.Foreground) != 1 || info.Foreground[0].Name != "nvim" {
 		t.Fatalf("unexpected process info %+v", info)
 	}
-	for _, err := range []error{
-		c.FocusDirection("left", "w1:p1"),
-		c.FocusDirection("up", ""),
-		c.SendKeys("w1:p1", "ctrl+h"),
-	} {
-		if err != nil {
-			t.Fatal(err)
-		}
+	if res, err := c.FocusDirection("left", "w1:p1"); err != nil || res != (FocusResult{}) {
+		t.Fatalf("focus left: %+v, %v", res, err)
+	}
+	if _, err := c.FocusDirection("up", ""); err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.FocusDirection("right", "w1:p1")
+	if err != nil || res.Reason != reasonNoNeighbor || res.SourcePaneID != "w1:p1" {
+		t.Fatalf("focus right at edge: %+v, %v", res, err)
+	}
+	if err := c.SendKeys("w1:p1", "ctrl+h"); err != nil {
+		t.Fatal(err)
 	}
 	want := []string{
 		"pane process-info --pane w1:p1",
 		"pane focus --direction left --pane w1:p1",
 		"pane focus --direction up --current",
+		"pane focus --direction right --pane w1:p1",
 		"pane send-keys w1:p1 ctrl+h",
 	}
 	if got := logged(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("CLI calls:\n got  %q\n want %q", got, want)
 	}
 
-	err = c.FocusDirection("left", "w1:missing")
+	_, err = c.FocusDirection("left", "w1:missing")
 	if err == nil || !strings.Contains(err.Error(), "pane_not_found") {
 		t.Fatalf("expected pane_not_found error, got %v", err)
 	}
@@ -105,6 +119,7 @@ func TestNavigateThroughCLI(t *testing.T) {
 	}{
 		{"nvim", "left", "pane send-keys w1:p1 ctrl+h"},
 		{"zsh", "down", "pane focus --direction down --pane w1:p1"},
+		{"zsh", "right", "pane send-keys w1:p1 ctrl+l"}, // no pane to the right
 	} {
 		c, logged := fakeCLIClient(t, tc.process)
 		if err := navigate(defaultConfig(), c, tc.dir, "w1:p1"); err != nil {
@@ -136,6 +151,8 @@ func TestSocket(t *testing.T) {
 				`{"pane_id":"w1:p1","shell_pid":7,"foreground_processes":[{"pid":8,"name":"nvim"}]}}}`, id)
 		case params["pane_id"] == "w1:missing":
 			return fmt.Sprintf(`{"id":%s,"error":{"code":"pane_not_found","message":"pane not found"}}`, id)
+		case params["direction"] == "right":
+			return noNeighborResult
 		}
 		return fmt.Sprintf(`{"id":%s,"result":{"type":"ok"}}`, id)
 	})
@@ -149,16 +166,19 @@ func TestSocket(t *testing.T) {
 	if info.ShellPID != 7 || info.Foreground[0].Name != "nvim" {
 		t.Fatalf("unexpected process info %+v", info)
 	}
-	if err := c.FocusDirection("left", "w1:p1"); err != nil {
+	if _, err := c.FocusDirection("left", "w1:p1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.FocusDirection("up", ""); err != nil {
+	if _, err := c.FocusDirection("up", ""); err != nil {
 		t.Fatal(err)
+	}
+	if res, err := c.FocusDirection("right", "w1:p1"); err != nil || res.Reason != reasonNoNeighbor {
+		t.Fatalf("focus right at edge: %+v, %v", res, err)
 	}
 	if err := c.SendKeys("w1:p1", "ctrl+h"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.FocusDirection("left", "w1:missing"); err == nil || !strings.Contains(err.Error(), "pane_not_found") {
+	if _, err := c.FocusDirection("left", "w1:missing"); err == nil || !strings.Contains(err.Error(), "pane_not_found") {
 		t.Fatalf("expected pane_not_found error, got %v", err)
 	}
 
@@ -173,6 +193,7 @@ func TestSocket(t *testing.T) {
 		`pane.process_info {"pane_id":"w1:p1"}`,
 		`pane.focus_direction {"direction":"left","pane_id":"w1:p1"}`,
 		`pane.focus_direction {"direction":"up"}`,
+		`pane.focus_direction {"direction":"right","pane_id":"w1:p1"}`,
 		`pane.send_keys {"keys":["ctrl+h"],"pane_id":"w1:p1"}`,
 		`pane.focus_direction {"direction":"left","pane_id":"w1:missing"}`,
 	}
