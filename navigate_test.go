@@ -93,7 +93,7 @@ func TestNavigate(t *testing.T) {
 		{name: "no pane uses focused pane", procs: []string{"nvim"}, dir: "right", pane: "", want: "focus right"},
 		{name: "process info error moves focus", infoErr: errors.New("boom"), dir: "left", pane: "w1:p1", want: "focus left w1:p1"},
 		{name: "shell at edge gets key", procs: []string{"zsh"}, edge: true, dir: "right", pane: "w1:p1", want: "send-keys w1:p1 ctrl+l"},
-		{name: "down at edge only moves focus", procs: []string{"zsh"}, edge: true, dir: "down", pane: "w1:p1", want: "focus down w1:p1"},
+		{name: "down at edge gets key", procs: []string{"zsh"}, edge: true, dir: "down", pane: "w1:p1", want: "send-keys w1:p1 ctrl+j"},
 		{name: "edge forwarding off", cfg: noEdge, procs: []string{"zsh"}, edge: true, dir: "right", pane: "w1:p1", want: "focus right w1:p1"},
 		{name: "custom keys at edge", cfg: custom, procs: []string{"zsh"}, edge: true, dir: "left", pane: "w1:p1", want: "send-keys w1:p1 alt+h"},
 		{name: "no pane at edge uses source pane", edge: true, dir: "up", pane: "", want: "send-keys w1:p7 ctrl+k"},

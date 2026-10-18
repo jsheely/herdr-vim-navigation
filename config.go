@@ -51,11 +51,12 @@ passthrough = []
 keys = ["ctrl+h", "ctrl+j", "ctrl+k", "ctrl+l"]
 
 # When there is no Herdr pane in a direction, send that direction's key into
-# the pane instead, so a shell keeps Ctrl+L (clear screen), Ctrl+K (kill line)
-# and Ctrl+H (backspace) at the edges and in a lone pane. "down" is left out
-# because Ctrl+J is Enter in bash and zsh: pressing it once too often would run
-# the command line. Use [] to always just move focus.
-forward_at_edge = ["left", "up", "right"]
+# the pane instead, so the program there gets the key as if the plugin weren't
+# installed: a lone pane keeps all four keys, and a shell keeps Ctrl+L (clear
+# screen) and Ctrl+K (kill line) at the edges. Ctrl+J is Enter in bash and zsh,
+# so remove "down" if pressing it once too often at the bottom edge would run
+# a half-typed command. Use [] to always just move focus.
+forward_at_edge = ["left", "down", "up", "right"]
 
 # Log every navigation decision to ` + "`herdr plugin log list`" + `.
 debug = false
@@ -65,7 +66,7 @@ func defaultConfig() Config {
 	return Config{
 		VimPattern:    regexp.MustCompile(defaultVimPattern),
 		Keys:          [4]string{"ctrl+h", "ctrl+j", "ctrl+k", "ctrl+l"},
-		ForwardAtEdge: []Direction{"left", "up", "right"},
+		ForwardAtEdge: []Direction{"left", "down", "up", "right"},
 	}
 }
 

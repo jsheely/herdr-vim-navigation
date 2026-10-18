@@ -19,7 +19,8 @@ There are two cooperating sides, as in `vim-tmux-navigator`:
   press. The action checks what is running in the focused pane. If it's
   Vim/Neovim, it forwards the key into the pane; otherwise it moves Herdr's
   pane focus. If there is no pane in that direction, the key goes into the
-  pane instead, so `Ctrl+L` still clears a shell (see `forward_at_edge`).
+  pane instead, so the program there gets it as if the plugin weren't
+  installed: a lone pane keeps all four keys (see `forward_at_edge`).
 - **Editor side** (`editor/nvim.lua`, `editor/vim.vim`): maps the same keys to
   `wincmd h/j/k/l`. If the window didn't change (Vim is at an edge), it runs
   `herdr pane focus --direction …` to cross into the neighbouring Herdr pane.
@@ -169,8 +170,9 @@ passthrough = []
 keys = ["ctrl+h", "ctrl+j", "ctrl+k", "ctrl+l"]
 
 # When there is no Herdr pane in a direction, send that direction's key into
-# the pane instead. "down" is left out because Ctrl+J is Enter in bash/zsh.
-forward_at_edge = ["left", "up", "right"]
+# the pane instead, as if the plugin weren't installed. Use [] to always just
+# move focus.
+forward_at_edge = ["left", "down", "up", "right"]
 
 # Log every navigation decision to `herdr plugin log list`.
 debug = false
@@ -216,8 +218,9 @@ herdr plugin log list --plugin jsheely.vim-navigation
   focus moved, so this adds no request when focus does move. With a pane to
   the right, `Ctrl+L` still moves focus, so bind clear to something like
   `prefix+l` if you want it everywhere, or use `alt+h/j/k/l` for navigation.
-  `Ctrl+J` is not forwarded by default: in bash and zsh it is Enter, so one
-  press too many would run the command line.
+  `Ctrl+J` at the bottom edge reaches the shell too, and in bash and zsh it
+  is Enter, so one press too many runs the command line. Remove `"down"` from
+  `forward_at_edge` if that bites.
 - **`Ctrl+h` vs Backspace.** Herdr delivers `ctrl+h` as a distinct key. This
   was verified on Windows ConPTY with Neovim 0.12, where `<C-h>` and `<BS>`
   arrive separately. Older Vims outside the kitty keyboard protocol may still
