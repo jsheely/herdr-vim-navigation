@@ -223,6 +223,14 @@ herdr plugin log list --plugin jsheely.vim-navigation
   arrive separately. Older Vims outside the kitty keyboard protocol may still
   see them as the same byte (`0x08`). In that case, map `<BS>` separately if
   it starts navigating.
+- **How keys are typed on Windows.** Herdr's `send-keys` types `ctrl+j` as
+  its control byte (`0x0A`), and ConPTY reads `0x0A` back as Ctrl+Enter
+  (`0x08` as Ctrl+Backspace). Programs that read console key events, such as
+  crossterm-based Rust TUIs and PSReadLine, then never see Ctrl+J or Ctrl+H.
+  So on Windows the plugin types `ctrl+<letter>` keys as win32-input-mode
+  sequences, which ConPTY delivers exactly like a real keypress. Neovim, pwsh
+  and crossterm all receive the right key. Other keys still go through
+  `send-keys`.
 - **WSL and SSH.** A Vim running inside `wsl.exe` or over `ssh` is invisible
   to process detection (the pane shows `wsl.exe`/`ssh`), so the keys move
   Herdr focus instead of reaching that Vim.

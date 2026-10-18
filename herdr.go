@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -53,6 +54,8 @@ type client struct {
 	socketPath string
 	bin        string
 	seq        int
+	// Type Ctrl+letter keys as win32-input-mode sequences (see keys.go).
+	win32Input bool
 }
 
 func newClient() *client {
@@ -60,7 +63,11 @@ func newClient() *client {
 	if bin == "" {
 		bin = "herdr"
 	}
-	return &client{socketPath: strings.TrimSpace(os.Getenv("HERDR_SOCKET_PATH")), bin: bin}
+	return &client{
+		socketPath: strings.TrimSpace(os.Getenv("HERDR_SOCKET_PATH")),
+		bin:        bin,
+		win32Input: runtime.GOOS == "windows",
+	}
 }
 
 func (c *client) ProcessInfo(paneID string) (ProcessInfo, error) {
@@ -91,6 +98,12 @@ func (c *client) FocusDirection(dir Direction, paneID string) (FocusResult, erro
 }
 
 func (c *client) SendKeys(paneID string, keys ...string) error {
+	if text, ok := win32InputText(keys); ok && c.win32Input {
+		return c.call("pane.send_text",
+			map[string]any{"pane_id": paneID, "text": text},
+			[]string{"pane", "send-text", paneID, text},
+			nil)
+	}
 	return c.call("pane.send_keys",
 		map[string]any{"pane_id": paneID, "keys": keys},
 		append([]string{"pane", "send-keys", paneID}, keys...),
